@@ -10,7 +10,8 @@
 * **Responsivo:** Funciona perfectamente tanto en navegadores de escritorio como en dispositivos móviles.
 
 ## 📸 Vistazo a la App
-*(Nota para ti: Aquí puedes arrastrar y soltar en GitHub las imágenes de tu interfaz que me mostraste antes para que se vean en el README).*
+<img width="1370" height="868" alt="image" src="https://github.com/user-attachments/assets/eead8dc3-83d1-4703-bd68-07f5700e86d9" />
+
 
 ## 🚀 Cómo ejecutarlo localmente en tu computadora
 
