@@ -18,6 +18,7 @@ def is_operand(token):
     logic_operators = ['AND', 'OR', 'NOT', 'XOR']
     return token.isalnum() and token.upper() not in logic_operators
 
+# --- LÓGICA PREFIJA (La que ya tenías) ---
 def solve_shunting_yard_prefix(expression):
     tokens = re.findall(r'\d+|[a-zA-Z]+|[+/*()^-]', expression)
     adjusted_tokens = tokens[::-1]
@@ -72,6 +73,62 @@ def solve_shunting_yard_prefix(expression):
     prefix_expr = " ".join(output_stack[::-1])
     return reversed_str, output_stack, op_snapshots, prefix_expr
 
+# --- NUEVA LÓGICA POSTFIJA ---
+def solve_shunting_yard_postfix(expression):
+    tokens = re.findall(r'\d+|[a-zA-Z]+|[+/*()^-]', expression)
+    original_str = " ".join(tokens)
+
+    output_stack = []
+    op_stack = []
+    op_snapshots = []
+
+    for token in tokens:
+        if is_operand(token):
+            output_stack.append(token)
+        elif token == '(':
+            op_stack.append(token)
+        elif token == ')':
+            temp_stack = list(op_stack) + [')'] 
+            
+            match_idx = -1
+            for i in range(len(op_stack) - 1, -1, -1):
+                if op_stack[i] == '(':
+                    match_idx = i
+                    break
+            
+            highlights = []
+            if match_idx != -1:
+                highlights = [match_idx, len(temp_stack) - 1]
+            
+            op_snapshots.append({'stack': temp_stack, 'highlights': highlights})
+
+            while op_stack and op_stack[-1] != '(':
+                output_stack.append(op_stack.pop())
+            if op_stack:
+                op_stack.pop() 
+        else:
+            popped = False
+            temp_stack = list(op_stack) + [token]
+            
+            while (op_stack and op_stack[-1] != '(' and 
+                   get_precedence(op_stack[-1]) >= get_precedence(token)):
+                if not popped:
+                    op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
+                    popped = True
+                output_stack.append(op_stack.pop())
+                
+            op_stack.append(token)
+    
+    if op_stack:
+        op_snapshots.append({'stack': list(op_stack), 'highlights': []})
+        while op_stack:
+            output_stack.append(op_stack.pop())
+
+    postfix_expr = " ".join(output_stack)
+    return original_str, output_stack, op_snapshots, postfix_expr
+
+
+# --- INTERFAZ DE USUARIO ---
 def main(page: ft.Page):
     page.title = "Algoritmo Shunting Yard"
     page.padding = 30
@@ -122,14 +179,27 @@ def main(page: ft.Page):
         if not txt_input.value: return
         results_container.controls.clear()
         
-        rev_s, out_s, snaps, pref_res = solve_shunting_yard_prefix(txt_input.value)
+        # Verificar qué opción seleccionó el usuario en el Dropdown
+        modo = dropdown_mode.value
 
-        results_container.controls.append(
-            ft.Column([
-                ft.Text(f"Original: {txt_input.value}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
-                ft.Text(f"Invertida: {rev_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
-            ])
-        )
+        if modo == "Prefija":
+            rev_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
+            
+            results_container.controls.append(
+                ft.Column([
+                    ft.Text(f"Original: {txt_input.value}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
+                    ft.Text(f"Invertida: {rev_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
+                ])
+            )
+        else: # Postfija
+            orig_s, out_s, snaps, final_res = solve_shunting_yard_postfix(txt_input.value)
+            
+            results_container.controls.append(
+                ft.Column([
+                    ft.Text(f"Original: {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
+                    # La postfija no necesita mostrar "Invertida" porque se lee de izquierda a derecha
+                ])
+            )
 
         stacks_row = ft.Row(
             spacing=30, 
@@ -147,8 +217,8 @@ def main(page: ft.Page):
         stacks_row.controls.append(
             ft.Container(
                 content=ft.Column([
-                    ft.Text("Prefija", size=16, weight="bold", color="#B0BEC5"),
-                    ft.Text(pref_res, size=26, color=ft.Colors.GREEN_400, weight="bold"),
+                    ft.Text(modo, size=16, weight="bold", color="#B0BEC5"),
+                    ft.Text(final_res, size=26, color=ft.Colors.GREEN_400, weight="bold"),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=ft.padding.only(left=20)
             )
@@ -157,6 +227,7 @@ def main(page: ft.Page):
         results_container.controls.append(stacks_row)
         page.update()
 
+    # --- ELEMENTOS DEL FORMULARIO ---
     txt_input = ft.TextField(
         label="Escribe tu operación:",
         expand=True,
@@ -164,15 +235,33 @@ def main(page: ft.Page):
         border_color=ft.Colors.CYAN_700,
         focused_border_color=ft.Colors.CYAN_300
     )  
+
+    # Nuevo Menú Desplegable
+    dropdown_mode = ft.Dropdown(
+        options=[
+            ft.dropdown.Option("Prefija"),
+            ft.dropdown.Option("Postfija"),
+        ],
+        value="Prefija", # Valor por defecto
+        width=150,
+        border_color=ft.Colors.CYAN_700,
+        focused_border_color=ft.Colors.CYAN_300,
+        color="white",
+        bgcolor="#263238"
+    )
+
     btn = ft.FilledButton(
         "Convertir", 
         on_click=on_convert,
         style=ft.ButtonStyle(bgcolor=ft.Colors.CYAN_700, color="white")
     )
+    
+    # Agregamos el dropdown a la fila superior
     page.add(
-        ft.Row([txt_input, btn]),
+        ft.Row([txt_input, dropdown_mode, btn]),
         ft.Divider(height=40, color="#37474F"),
         results_container
     )
+
 if __name__ == "__main__":
     ft.app(main)
