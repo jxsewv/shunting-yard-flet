@@ -16,11 +16,23 @@ def get_precedence(op):
 
 def is_operand(token):
     logic_operators = ['AND', 'OR', 'NOT', 'XOR']
+    if token.endswith('(') or token in ['+', '-', '*', '/', '^', '(', ')']: 
+        return False
     return token.isalnum() and token.upper() not in logic_operators
 
-# --- LÓGICA PREFIJA (La que ya tenías) ---
+def is_open_paren(t):
+    # Detecta '(' normal o funciones como 'sen(', 'cos(', etc.
+    return t == '(' or t.endswith('(')
+
+# --- LÓGICA PREFIJA ---
 def solve_shunting_yard_prefix(expression):
-    tokens = re.findall(r'\d+|[a-zA-Z]+|[+/*()^-]', expression)
+    # 1. Agrega '*' implícito (ej. "5x" -> "5 * x")
+    expression = re.sub(r'(\d)([a-zA-Z])', r'\1 * \2', expression)
+    
+    # 2. Captura "sen(", "cos (", números, letras y operadores
+    tokens = re.findall(r'[a-zA-Z]+\s*\(|\d+|[a-zA-Z]+|[+/*()^-]', expression)
+    tokens = [t.replace(" ", "") for t in tokens] # Limpia espacios internos "sen (" -> "sen("
+    
     adjusted_tokens = tokens[::-1]
     reversed_str = " ".join(adjusted_tokens)
 
@@ -33,8 +45,8 @@ def solve_shunting_yard_prefix(expression):
             output_stack.append(token)
         elif token == ')':
             op_stack.append(token)
-        elif token == '(':
-            temp_stack = list(op_stack) + ['('] 
+        elif is_open_paren(token): # Actúa como cierre de paréntesis al estar invertido
+            temp_stack = list(op_stack) + [token] 
             
             match_idx = -1
             for i in range(len(op_stack) - 1, -1, -1):
@@ -51,31 +63,55 @@ def solve_shunting_yard_prefix(expression):
             while op_stack and op_stack[-1] != ')':
                 output_stack.append(op_stack.pop())
             if op_stack:
-                op_stack.pop() 
+                op_stack.pop() # Saca el ')'
+                
+            # Si era "sen(", agrega "sen" a la salida (sin el paréntesis)
+            if token != '(':
+                output_stack.append(token[:-1])
         else:
             popped = False
             temp_stack = list(op_stack) + [token]
             
-            while (op_stack and op_stack[-1] != ')' and 
-                   get_precedence(op_stack[-1]) >= get_precedence(token)):
-                if not popped:
-                    op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
-                    popped = True
-                output_stack.append(op_stack.pop())
+            while op_stack and op_stack[-1] != ')':
+                top_op = op_stack[-1]
+                # Ajuste de precedencia (Para prefija invertida, '^' es >=, el resto es >)
+                if token == '^':
+                    if get_precedence(top_op) >= get_precedence(token):
+                        if not popped:
+                            op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
+                            popped = True
+                        output_stack.append(op_stack.pop())
+                    else:
+                        break
+                else:
+                    if get_precedence(top_op) > get_precedence(token):
+                        if not popped:
+                            op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
+                            popped = True
+                        output_stack.append(op_stack.pop())
+                    else:
+                        break
                 
             op_stack.append(token)
     
     if op_stack:
         op_snapshots.append({'stack': list(op_stack), 'highlights': []})
         while op_stack:
-            output_stack.append(op_stack.pop())
+            popped = op_stack.pop()
+            if popped != ')':
+                output_stack.append(popped)
 
     prefix_expr = " ".join(output_stack[::-1])
     return reversed_str, output_stack, op_snapshots, prefix_expr
 
-# --- NUEVA LÓGICA POSTFIJA ---
+# --- LÓGICA POSTFIJA ---
 def solve_shunting_yard_postfix(expression):
-    tokens = re.findall(r'\d+|[a-zA-Z]+|[+/*()^-]', expression)
+    # 1. Agrega '*' implícito (ej. "5x" -> "5 * x")
+    expression = re.sub(r'(\d)([a-zA-Z])', r'\1 * \2', expression)
+    
+    # 2. Captura "sen(", "cos (", números, letras y operadores
+    tokens = re.findall(r'[a-zA-Z]+\s*\(|\d+|[a-zA-Z]+|[+/*()^-]', expression)
+    tokens = [t.replace(" ", "") for t in tokens]
     original_str = " ".join(tokens)
 
     output_stack = []
@@ -85,14 +121,14 @@ def solve_shunting_yard_postfix(expression):
     for token in tokens:
         if is_operand(token):
             output_stack.append(token)
-        elif token == '(':
-            op_stack.append(token)
+        elif is_open_paren(token):
+            op_stack.append(token) # Se apila completo, ej: 'sen('
         elif token == ')':
             temp_stack = list(op_stack) + [')'] 
             
             match_idx = -1
             for i in range(len(op_stack) - 1, -1, -1):
-                if op_stack[i] == '(':
+                if is_open_paren(op_stack[i]):
                     match_idx = i
                     break
             
@@ -102,31 +138,51 @@ def solve_shunting_yard_postfix(expression):
             
             op_snapshots.append({'stack': temp_stack, 'highlights': highlights})
 
-            while op_stack and op_stack[-1] != '(':
+            while op_stack and not is_open_paren(op_stack[-1]):
                 output_stack.append(op_stack.pop())
             if op_stack:
-                op_stack.pop() 
+                popped_paren = op_stack.pop()
+                # Si sacó un "sen(", manda "sen" a la salida
+                if popped_paren != '(':
+                    output_stack.append(popped_paren[:-1])
         else:
             popped = False
             temp_stack = list(op_stack) + [token]
             
-            while (op_stack and op_stack[-1] != '(' and 
-                   get_precedence(op_stack[-1]) >= get_precedence(token)):
-                if not popped:
-                    op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
-                    popped = True
-                output_stack.append(op_stack.pop())
+            while op_stack and not is_open_paren(op_stack[-1]):
+                top_op = op_stack[-1]
+                # Ajuste de precedencia: '^' se asocia de derecha a izquierda (>)
+                if token == '^':
+                    if get_precedence(top_op) > get_precedence(token):
+                        if not popped:
+                            op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
+                            popped = True
+                        output_stack.append(op_stack.pop())
+                    else:
+                        break
+                else:
+                    if get_precedence(top_op) >= get_precedence(token):
+                        if not popped:
+                            op_snapshots.append({'stack': temp_stack, 'highlights': [len(temp_stack) - 1]})
+                            popped = True
+                        output_stack.append(op_stack.pop())
+                    else:
+                        break
                 
             op_stack.append(token)
     
     if op_stack:
         op_snapshots.append({'stack': list(op_stack), 'highlights': []})
         while op_stack:
-            output_stack.append(op_stack.pop())
+            popped = op_stack.pop()
+            if is_open_paren(popped):
+                if popped != '(':
+                    output_stack.append(popped[:-1])
+            else:
+                output_stack.append(popped)
 
     postfix_expr = " ".join(output_stack)
     return original_str, output_stack, op_snapshots, postfix_expr
-
 
 # --- INTERFAZ DE USUARIO ---
 def main(page: ft.Page):
@@ -179,16 +235,15 @@ def main(page: ft.Page):
         if not txt_input.value: return
         results_container.controls.clear()
         
-        # Verificar qué opción seleccionó el usuario en el Dropdown
         modo = dropdown_mode.value
 
         if modo == "Prefija":
-            rev_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
+            orig_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
             
             results_container.controls.append(
                 ft.Column([
                     ft.Text(f"Original: {txt_input.value}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
-                    ft.Text(f"Invertida: {rev_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
+                    ft.Text(f"Invertida: {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
                 ])
             )
         else: # Postfija
@@ -196,8 +251,7 @@ def main(page: ft.Page):
             
             results_container.controls.append(
                 ft.Column([
-                    ft.Text(f"Original: {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
-                    # La postfija no necesita mostrar "Invertida" porque se lee de izquierda a derecha
+                    ft.Text(f"Original (Procesada): {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"),
                 ])
             )
 
@@ -227,7 +281,6 @@ def main(page: ft.Page):
         results_container.controls.append(stacks_row)
         page.update()
 
-    # --- ELEMENTOS DEL FORMULARIO ---
     txt_input = ft.TextField(
         label="Escribe tu operación:",
         expand=True,
@@ -236,13 +289,12 @@ def main(page: ft.Page):
         focused_border_color=ft.Colors.CYAN_300
     )  
 
-    # Nuevo Menú Desplegable
     dropdown_mode = ft.Dropdown(
         options=[
             ft.dropdown.Option("Prefija"),
             ft.dropdown.Option("Postfija"),
         ],
-        value="Prefija", # Valor por defecto
+        value="Postfija", # Cambié el valor por defecto a Postfija para que pruebes el de la imagen
         width=150,
         border_color=ft.Colors.CYAN_700,
         focused_border_color=ft.Colors.CYAN_300,
@@ -256,7 +308,6 @@ def main(page: ft.Page):
         style=ft.ButtonStyle(bgcolor=ft.Colors.CYAN_700, color="white")
     )
     
-    # Agregamos el dropdown a la fila superior
     page.add(
         ft.Row([txt_input, dropdown_mode, btn]),
         ft.Divider(height=40, color="#37474F"),
