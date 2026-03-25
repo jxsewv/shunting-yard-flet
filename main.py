@@ -32,8 +32,10 @@ def solve_shunting_yard_prefix(expression):
     tokens = re.findall(r'[a-zA-Z]+\s*\(|\d+|[a-zA-Z]+|[+/*()^-]', expression)
     tokens = [t.replace(" ", "") for t in tokens] 
     
+    original_str = " ".join(tokens) # Guardamos la original
+    
     adjusted_tokens = tokens[::-1]
-    reversed_str = " ".join(adjusted_tokens)
+    reversed_str = " ".join(adjusted_tokens) # Y esta es la invertida
 
     output_stack = []
     op_stack = []
@@ -86,7 +88,8 @@ def solve_shunting_yard_prefix(expression):
             output_stack.append(popped)
 
     prefix_expr = " ".join(output_stack[::-1])
-    return reversed_str, output_stack, op_snapshots, prefix_expr
+    # Ahora retornamos ambas cadenas al principio
+    return original_str, reversed_str, output_stack, op_snapshots, prefix_expr
 
 # --- 2. INFIJA A POSTFIJA ---
 def solve_shunting_yard_postfix(expression):
@@ -268,16 +271,21 @@ def main(page: ft.Page):
         if modo in ["Infija a Prefija", "Infija a Postfija"]:
             stacks_row = ft.Row(spacing=30, vertical_alignment=ft.CrossAxisAlignment.END, scroll=ft.ScrollMode.ALWAYS)
             
+            # --- AQUÍ MOSTRARÁ AMBAS CADENAS EN PREFIJA ---
             if modo == "Infija a Prefija":
-                orig_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
-                results_container.controls.append(ft.Text(f"Original Invertida: {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"))
+                orig_s, rev_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
+                results_container.controls.append(
+                    ft.Column([
+                        ft.Text(f"Original Procesada: {orig_s}", size=18, color=ft.Colors.CYAN_100),
+                        ft.Text(f"Original Invertida: {rev_s}", size=22, color=ft.Colors.CYAN_300, weight="bold")
+                    ])
+                )
             else:
                 orig_s, out_s, snaps, final_res = solve_shunting_yard_postfix(txt_input.value)
                 results_container.controls.append(ft.Text(f"Original Procesada: {orig_s}", size=22, color=ft.Colors.CYAN_300, weight="bold"))
 
             stacks_row.controls.append(draw_stack("Salida", out_s))
             for snap in snaps:
-                # Aquí pasamos las dos listas de índices para colorear
                 stacks_row.controls.append(draw_stack("Operador", snap['stack'], snap.get('paren_idx', []), snap.get('new_idx', [])))
 
             stacks_row.controls.append(
@@ -329,7 +337,7 @@ def main(page: ft.Page):
             ft.dropdown.Option("Polaca"),
             ft.dropdown.Option("Polaca Inversa"),
         ],
-        value="Infija a Postfija",
+        value="Infija a Prefija",
         width=180,
         border_color=ft.Colors.CYAN_700,
         focused_border_color=ft.Colors.CYAN_300,
