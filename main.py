@@ -1,4 +1,5 @@
 import flet as ft
+import flet.canvas as cv
 import re
 
 def get_precedence(op):
@@ -26,16 +27,38 @@ def is_operator(token):
 def is_function(token):
     return token.lower() in ['sen', 'cos', 'tan', 'not']
 
+# --- CLASE PARA EL ÁRBOL (AST) ---
+class TreeNode:
+    def __init__(self, value, left=None, right=None):
+        self.value = value
+        self.left = left
+        self.right = right
+        self.x = 0
+        self.y = 0
+
+def build_ast(postfix_tokens):
+    stack = []
+    for token in postfix_tokens:
+        if is_operator(token):
+            right = stack.pop() if stack else None
+            left = stack.pop() if stack else None
+            stack.append(TreeNode(token, left, right))
+        elif is_function(token):
+            child = stack.pop() if stack else None
+            stack.append(TreeNode(token, left=child))
+        else:
+            stack.append(TreeNode(token))
+    return stack[0] if stack else None
+
 # --- 1. INFIJA A PREFIJA ---
 def solve_shunting_yard_prefix(expression):
     expression = re.sub(r'(\d)([a-zA-Z])', r'\1 * \2', expression)
     tokens = re.findall(r'[a-zA-Z]+\s*\(|\d+|[a-zA-Z]+|[+/*()^-]', expression)
     tokens = [t.replace(" ", "") for t in tokens] 
     
-    original_str = " ".join(tokens) # Guardamos la original
-    
+    original_str = " ".join(tokens) 
     adjusted_tokens = tokens[::-1]
-    reversed_str = " ".join(adjusted_tokens) # Y esta es la invertida
+    reversed_str = " ".join(adjusted_tokens) 
 
     output_stack = []
     op_stack = []
@@ -46,7 +69,6 @@ def solve_shunting_yard_prefix(expression):
             output_stack.append(token)
         elif token == ')':
             op_stack.append(token)
-            # El paréntesis es naranja
             op_snapshots.append({'stack': list(op_stack), 'paren_idx': [len(op_stack) - 1], 'new_idx': []})
         elif is_open_paren(token): 
             temp_stack = list(op_stack) + [token] 
@@ -57,7 +79,6 @@ def solve_shunting_yard_prefix(expression):
                     break
             
             p_idx = [match_idx, len(temp_stack) - 1] if match_idx != -1 else []
-            # Ambos paréntesis se pintan de naranja al encontrarse
             op_snapshots.append({'stack': temp_stack, 'paren_idx': p_idx, 'new_idx': []})
 
             while op_stack and op_stack[-1] != ')':
@@ -79,7 +100,6 @@ def solve_shunting_yard_prefix(expression):
                     break
                 
             op_stack.append(token)
-            # El operador nuevo se pinta con el color nuevo (azul)
             op_snapshots.append({'stack': list(op_stack), 'paren_idx': [], 'new_idx': [len(op_stack) - 1]})
     
     while op_stack:
@@ -88,7 +108,6 @@ def solve_shunting_yard_prefix(expression):
             output_stack.append(popped)
 
     prefix_expr = " ".join(output_stack[::-1])
-    # Ahora retornamos ambas cadenas al principio
     return original_str, reversed_str, output_stack, op_snapshots, prefix_expr
 
 # --- 2. INFIJA A POSTFIJA ---
@@ -107,7 +126,6 @@ def solve_shunting_yard_postfix(expression):
             output_stack.append(token)
         elif is_open_paren(token):
             op_stack.append(token)
-            # El paréntesis es naranja
             op_snapshots.append({'stack': list(op_stack), 'paren_idx': [len(op_stack) - 1], 'new_idx': []})
         elif token == ')':
             temp_stack = list(op_stack) + [')'] 
@@ -118,7 +136,6 @@ def solve_shunting_yard_postfix(expression):
                     break
             
             p_idx = [match_idx, len(temp_stack) - 1] if match_idx != -1 else []
-            # Ambos paréntesis se pintan de naranja al encontrarse
             op_snapshots.append({'stack': temp_stack, 'paren_idx': p_idx, 'new_idx': []})
 
             while op_stack and not is_open_paren(op_stack[-1]):
@@ -139,7 +156,6 @@ def solve_shunting_yard_postfix(expression):
                     break
                 
             op_stack.append(token)
-            # El operador nuevo se pinta con el color nuevo (azul)
             op_snapshots.append({'stack': list(op_stack), 'paren_idx': [], 'new_idx': [len(op_stack) - 1]})
     
     while op_stack:
@@ -176,8 +192,7 @@ def solve_polaca(expression):
                     steps.append(" ".join(tokens))
                     replaced = True
                     break
-        if not replaced: 
-            break 
+        if not replaced: break 
     return steps
 
 # --- 4. POLACA INVERSA (POSTFIJA A INFIJA - PASO A PASO) ---
@@ -202,8 +217,7 @@ def solve_polaca_inversa(expression):
                     steps.append(" ".join(tokens))
                     replaced = True
                     break
-        if not replaced: 
-            break
+        if not replaced: break
     return steps
 
 
@@ -222,35 +236,22 @@ def main(page: ft.Page):
         
         for i in range(len(items) - 1, -1, -1):
             item = items[i]
-            
-            # Colores base
-            bg_color = "#263238"
-            border_color = "#546E7A"
-            
-            # Si es paréntesis, se pinta de naranja
+            bg_color, border_color = "#263238", "#546E7A"
             if i in paren_idx:
-                bg_color = "#E65100"
-                border_color = "#FFA726"
-            # Si es el operador nuevo, se pinta de un tono azul vibrante
+                bg_color, border_color = "#E65100", "#FFA726"
             elif i in new_idx:
-                bg_color = "#0277BD" # Light Blue 800
-                border_color = "#4FC3F7" # Light Blue 300
+                bg_color, border_color = "#0277BD", "#4FC3F7"
                 
             cells.append(
                 ft.Container(
                     content=ft.Text(str(item), color="white", weight="bold", size=16, text_align="center"),
                     border=ft.border.Border(
-                        ft.border.BorderSide(2, border_color),
-                        ft.border.BorderSide(2, border_color),
-                        ft.border.BorderSide(2, border_color),
-                        ft.border.BorderSide(2, border_color)
+                        ft.border.BorderSide(2, border_color), ft.border.BorderSide(2, border_color),
+                        ft.border.BorderSide(2, border_color), ft.border.BorderSide(2, border_color)
                     ),
-                    padding=ft.padding.symmetric(horizontal=15), 
-                    width=75,
-                    height=35,
-                    alignment=ft.Alignment(0, 0),
-                    bgcolor=bg_color,
-                    border_radius=5
+                    padding=ft.Padding(left=15, right=15, top=0, bottom=0), 
+                    width=75, height=35,
+                    alignment=ft.Alignment(0, 0), bgcolor=bg_color, border_radius=5
                 )
             )
             
@@ -260,6 +261,70 @@ def main(page: ft.Page):
             ft.Column(cells, spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Text(title, weight="bold", size=16, color="#B0BEC5")
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # --- FUNCIÓN PARA DIBUJAR EL ÁRBOL EN EL CANVAS ---
+    def draw_tree_canvas(expression):
+        try:
+            _, postfix_tokens, _, _ = solve_shunting_yard_postfix(expression)
+            root = build_ast(postfix_tokens)
+            
+            if not root:
+                return ft.Text("No se pudo generar el árbol (expresión inválida).", color=ft.Colors.RED)
+                
+            def get_depth(node):
+                if not node: return 0
+                return 1 + max(get_depth(node.left), get_depth(node.right))
+                
+            depth = get_depth(root)
+            canvas_h = max(250, depth * 70 + 40)
+            canvas_w = max(800, (2 ** max(0, depth-2)) * 150)
+            
+            def assign_coords(node, x, y, dx, dy):
+                if not node: return
+                node.x = x
+                node.y = y
+                assign_coords(node.left, x - dx, y + dy, dx * 0.55, dy)
+                assign_coords(node.right, x + dx, y + dy, dx * 0.55, dy)
+                
+            assign_coords(root, canvas_w / 2, 40, canvas_w / 4, 75)
+            
+            shapes = []
+            
+            def draw_lines(node):
+                if node.left:
+                    shapes.append(cv.Line(node.x, node.y, node.left.x, node.left.y, ft.Paint(color="#546E7A", stroke_width=2)))
+                    draw_lines(node.left)
+                if node.right:
+                    shapes.append(cv.Line(node.x, node.y, node.right.x, node.right.y, ft.Paint(color="#546E7A", stroke_width=2)))
+                    draw_lines(node.right)
+                    
+            def draw_nodes(node):
+                is_op = is_operator(node.value) or is_function(node.value)
+                bg_color = "#0277BD" if is_op else "#263238" 
+                
+                shapes.append(cv.Circle(node.x, node.y, 22, ft.Paint(color=bg_color, style=ft.PaintingStyle.FILL)))
+                shapes.append(cv.Circle(node.x, node.y, 22, ft.Paint(color="#4FC3F7" if is_op else "#546E7A", style=ft.PaintingStyle.STROKE, stroke_width=2)))
+                # Corrección de la alineación para el texto del nodo
+                shapes.append(cv.Text(node.x, node.y, str(node.value), style=ft.TextStyle(size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE), alignment=ft.Alignment(0, 0)))
+                
+                if node.left: draw_nodes(node.left)
+                if node.right: draw_nodes(node.right)
+
+            draw_lines(root)
+            draw_nodes(root)
+            
+            return ft.Row([
+                ft.Container(
+                    content=cv.Canvas(shapes=shapes, width=canvas_w, height=canvas_h),
+                    padding=20,
+                    border=ft.border.all(1, "#37474F"),
+                    border_radius=10,
+                    bgcolor="#1E272E",
+                    alignment=ft.Alignment(0, 0)
+                )
+            ], scroll=ft.ScrollMode.ALWAYS)
+        except Exception as e:
+             return ft.Text(f"Error generando el AST: {e}", color=ft.Colors.RED)
 
     results_container = ft.Column(spacing=30)
 
@@ -271,7 +336,6 @@ def main(page: ft.Page):
         if modo in ["Infija a Prefija", "Infija a Postfija"]:
             stacks_row = ft.Row(spacing=30, vertical_alignment=ft.CrossAxisAlignment.END, scroll=ft.ScrollMode.ALWAYS)
             
-            # --- AQUÍ MOSTRARÁ AMBAS CADENAS EN PREFIJA ---
             if modo == "Infija a Prefija":
                 orig_s, rev_s, out_s, snaps, final_res = solve_shunting_yard_prefix(txt_input.value)
                 results_container.controls.append(
@@ -294,12 +358,17 @@ def main(page: ft.Page):
                         ft.Text("RESULTADO FINAL", size=16, weight="bold", color="#B0BEC5"),
                         ft.Text(final_res, size=26, color=ft.Colors.GREEN_400, weight="bold"),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=ft.padding.only(left=20)
+                    padding=ft.Padding(left=20, right=0, top=0, bottom=0)
                 )
             )
             results_container.controls.append(stacks_row)
+            
+            # --- ÁRBOL BINARIO (AST) ---
+            results_container.controls.append(ft.Divider(height=20, color="#37474F"))
+            results_container.controls.append(ft.Text("Árbol de Expresión Abstracta (AST):", size=22, color=ft.Colors.CYAN_300, weight="bold"))
+            results_container.controls.append(draw_tree_canvas(txt_input.value))
 
-        else: # POLACA O POLACA INVERSA (Estilo libreta)
+        else: 
             steps = solve_polaca(txt_input.value) if modo == "Polaca" else solve_polaca_inversa(txt_input.value)
             
             results_container.controls.append(ft.Text(f"Resolución paso a paso ({modo}):", size=22, color=ft.Colors.CYAN_300, weight="bold"))
@@ -354,4 +423,7 @@ def main(page: ft.Page):
     )
 
 if __name__ == "__main__":
-    ft.app(main)
+    try:
+        ft.run(main)
+    except AttributeError:
+        ft.app(target=main)
